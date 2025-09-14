@@ -110,16 +110,18 @@ if st.session_state.stage == 'capture':
     st.header("Step 1: Provide an Image")
     
     tab1, tab2 = st.tabs(["📷 Take a Photo", "📂 Upload an Image"])
-    img_file_buffer = None
     
     with tab1:
-        img_file_buffer = st.camera_input("Take a picture", key="camera_input")
+        camera_buffer = st.camera_input("Take a picture", key="camera_input")
 
     with tab2:
-        img_file_buffer = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"], key="file_uploader")
-
-    if img_file_buffer:
-        image = Image.open(img_file_buffer)
+        file_buffer = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"], key="file_uploader")
+    
+    # CORRECTED LOGIC: Check both buffers independently
+    if camera_buffer or file_buffer:
+        # Use the buffer that has data
+        img_buffer_to_process = camera_buffer or file_buffer
+        image = Image.open(img_buffer_to_process)
         st.session_state.image = image
         
         # Immediately run detection and store contours before switching stage
@@ -154,21 +156,17 @@ elif st.session_state.stage == 'results':
     ref_box = cv2.minAreaRect(ref_contour)
     ref_box_pts = cv2.boxPoints(ref_box).astype("int")
 
-    # CORRECTED LOGIC: Get width and height from the rotated rectangle
     (ref_w_px, ref_h_px) = ref_box[1]
     
-    # To be consistent, let's define width as the smaller side and height as the larger side
     ref_pixel_width = min(ref_w_px, ref_h_px)
     ref_pixel_height = max(ref_w_px, ref_h_px)
 
-    # Determine the pixels-per-metric scale based on user's choice
     if st.session_state.ref_dimension_type == 'Width (shorter side)':
         if ref_pixel_width > 0: pixels_per_metric = ref_pixel_width / st.session_state.ref_dimension_value
     else: # 'Height (longer side)'
         if ref_pixel_height > 0: pixels_per_metric = ref_pixel_height / st.session_state.ref_dimension_value
     
-    # Draw reference box
-    (x, y, w, h) = cv2.boundingRect(ref_contour) # Still use this for text placement
+    (x, y, w, h) = cv2.boundingRect(ref_contour)
     cv2.drawContours(output_image, [ref_box_pts], -1, (255, 165, 0), 2)
     cv2.putText(output_image, "Reference", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 165, 0), 2)
     
@@ -178,15 +176,12 @@ elif st.session_state.stage == 'results':
             obj_box = cv2.minAreaRect(contour)
             obj_box_pts = cv2.boxPoints(obj_box).astype("int")
             
-            # CORRECTED LOGIC: Get width and height from the rotated rectangle
             (obj_w_px, obj_h_px) = obj_box[1]
             
-            # Calculate real-world dimensions consistently
             dim_w = min(obj_w_px, obj_h_px) / pixels_per_metric
             dim_h = max(obj_w_px, obj_h_px) / pixels_per_metric
             
-            # Draw target box and dimensions
-            (x, y, w, h) = cv2.boundingRect(contour) # Still use this for text placement
+            (x, y, w, h) = cv2.boundingRect(contour)
             cv2.drawContours(output_image, [obj_box_pts], -1, (0, 255, 0), 2)
             cv2.putText(output_image, f"W: {dim_w:.2f} cm", (x, y - 35), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
@@ -194,4 +189,5 @@ elif st.session_state.stage == 'results':
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
     st.image(cv2.cvtColor(output_image, cv2.COLOR_BGR2RGB), caption="Final Measurements", use_column_width=True)
+
 
